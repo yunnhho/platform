@@ -1,0 +1,68 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.2'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.safety'
+version = '0.0.1-SNAPSHOT'
+description = 'Industrial Safety Monitoring Platform'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.boot:spring-boot-starter-kafka'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.apache.kafka:kafka-streams'
+	compileOnly 'org.projectlombok:lombok'
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+	runtimeOnly 'org.postgresql:postgresql'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-kafka-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// Resilience4j (Circuit Breaker)
+	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.1.0'
+	implementation 'io.github.resilience4j:resilience4j-circuitbreaker:2.1.0'
+
+	// MinIO (Object Storage)
+	implementation 'io.minio:minio:8.5.7'
+
+	// Apache Commons Math (선형 회귀)
+	implementation 'org.apache.commons:commons-math3:3.6.1'
+
+	// Testing
+	testImplementation 'org.testcontainers:testcontainers:1.19.3'
+	testImplementation 'org.testcontainers:postgresql:1.19.3'
+	testImplementation 'org.testcontainers:kafka:1.19.3'
+}
+
+tasks.named('bootBuildImage') {
+	runImage = 'paketobuildpacks/ubuntu-noble-run:latest'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
