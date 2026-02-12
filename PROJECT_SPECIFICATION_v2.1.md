@@ -789,8 +789,8 @@ protected void calculateHash() {
 - [x] Docker Compose 작성 (v2.1)
 - [x] **🔒 불변성 스크립트 작성**
 - [x] **🔄 상태 복구 설정 추가**
-- [ ] Git Repository 생성
-- [ ] 프로젝트 구조 생성
+- [x] Git Repository 생성
+- [x] 프로젝트 구조 생성
 
 ### Phase 1 완료 기준
 - [ ] Mock API 동작
