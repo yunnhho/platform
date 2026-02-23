@@ -17,7 +17,96 @@
 - Monitoring: Prometheus, Grafana
 - Infra: Docker Compose
 
-### 3. 저장소 구조
+### 3. 아키텍처 및 데이터 플로우(시각화)
+#### 3.1 시스템 아키텍처
+```mermaid
+flowchart LR
+    subgraph Clients[사용자/클라이언트]
+        UI[Frontend Dashboard<br/>React + STOMP]
+        Ops[운영자]
+    end
+
+    subgraph Backend[Backend API<br/>Spring Boot]
+        API[REST API]
+        WS[WebSocket/STOMP]
+        SCH[Schedulers<br/>Sensor/Outbox/Tier/SLA]
+    end
+
+    subgraph DataPlane[데이터 계층]
+        PG[(PostgreSQL<br/>safety_event_log<br/>event_audit_log<br/>outbox_message)]
+        REDIS[(Redis Cache)]
+        KAFKA[(Kafka)]
+        STREAMS[Kafka Streams]
+        MINIO[(MinIO Archive)]
+    end
+
+    subgraph Obs[관측/운영]
+        PROM[Prometheus]
+        GRAF[Grafana]
+        KUI[Kafka UI]
+    end
+
+    Ops --> UI
+    UI -->|HTTP| API
+    UI -->|WS /ws/sensors| WS
+    API --> PG
+    API --> REDIS
+    SCH --> PG
+    SCH --> KAFKA
+    KAFKA --> STREAMS
+    STREAMS --> API
+    SCH --> MINIO
+    API --> PROM
+    PROM --> GRAF
+    KAFKA --> KUI
+```
+
+#### 3.2 실시간 데이터 플로우
+```mermaid
+flowchart TD
+    S1[Sensor Polling 1s] --> S2[Event 생성]
+    S2 --> S3[PostgreSQL safety_event_log 저장<br/>Hash Chain]
+    S2 --> S4[Outbox 메시지 적재]
+    S4 --> S5[Outbox Scheduler 전송]
+    S5 --> S6[Kafka sensor-readings 토픽]
+    S6 --> S7[Kafka Streams 집계/상태복구]
+    S7 --> S8[REST/WS로 대시보드 제공]
+    S8 --> S9[운영자 실시간 모니터링]
+```
+
+#### 3.3 불변성 및 감사 로깅 플로우
+```mermaid
+sequenceDiagram
+    participant App as Application/API
+    participant DB as PostgreSQL
+    participant TR as DB Trigger
+    participant AUD as event_audit_log
+
+    App->>DB: INSERT safety_event_log (정상)
+    DB-->>App: 저장 성공
+
+    App->>DB: UPDATE/DELETE 시도
+    DB->>TR: prevent_event_modification()
+    TR->>AUD: 변경 시도 감사로그 기록
+    TR-->>App: IMMUTABILITY_VIOLATION 예외 반환
+```
+
+#### 3.4 Hot-Warm-Cold 계층화 저장 흐름
+```mermaid
+flowchart LR
+    H[HOT<br/>최근 이벤트<br/>PostgreSQL] --> W[WARM<br/>중기 데이터]
+    W --> C[COLD<br/>MinIO 아카이브 + manifest]
+    C --> R[복구/감사 조회]
+
+    T1[StorageTierScheduler] --> H
+    T1 --> W
+    T2[Archive Run/API] --> C
+    API1[/api/storage/tiers/summary] --> H
+    API1 --> W
+    API1 --> C
+```
+
+### 4. 저장소 구조
 - `backend/`: API, 스케줄러, 도메인, Kafka/Outbox/Streams, 테스트
 - `frontend/`: 대시보드 UI
 - `init-scripts/`: DB 스키마, Outbox, 불변성 트리거, 파티셔닝, SLA 로그
@@ -25,12 +114,12 @@
 - `docs/adr/`: 아키텍처 의사결정 문서
 - `scripts/`: 운영/명세 검증 스크립트
 
-### 4. 실행 전 준비
+### 5. 실행 전 준비
 - Docker, Docker Compose
 - Java 21 (로컬에서 백엔드 단독 실행 시)
 - Node.js 18+ (로컬에서 프론트 단독 실행 시)
 
-### 5. 실행 방법
+### 6. 실행 방법
 1. 인프라/애플리케이션 실행
 ```bash
 docker-compose up -d
@@ -47,7 +136,7 @@ docker-compose ps
 - Grafana: `http://localhost:3000` (admin / admin)
 - MinIO Console: `http://localhost:9001` (minioadmin / minioadmin)
 
-### 6. 프론트 확인 포인트
+### 7. 프론트 확인 포인트
 1. 메인 대시보드 접속
 - `http://localhost:3001`
 2. 실시간 반영 확인
@@ -57,7 +146,7 @@ docker-compose ps
 3. WebSocket 경로
 - `/ws/sensors`
 
-### 7. 핵심 API
+### 8. 핵심 API
 - `GET /api/sensors/latest`
 - `GET /api/events/recent`
 - `GET /api/audit/stats`
@@ -68,7 +157,7 @@ docker-compose ps
 - `GET /api/kafka/lag?groupId=safety-group`
 - `GET /api/streams/sla`
 
-### 8. 검증 포인트
+### 9. 검증 포인트
 1. 이벤트 불변성(DB 트리거)
 ```sql
 UPDATE safety_event_log
@@ -111,25 +200,25 @@ curl "http://localhost:8080/api/kafka/lag?groupId=safety-group"
 curl http://localhost:8080/api/streams/sla
 ```
 
-### 9. 테스트
+### 10. 테스트
 ```bash
 cd backend
 ./gradlew.bat test --no-daemon --console=plain
 ```
 
-### 10. 운영 지표
+### 11. 운영 지표
 - `safety_immutability_violation_total`
 - `safety_outbox_sent_total`
 - `safety_outbox_failed_total`
 - `kafka_streams_state_recovery_time_ms`
 - `kafka_streams_state_code`
 
-### 11. 월별 파티셔닝
+### 12. 월별 파티셔닝
 - 스크립트: `init-scripts/06-monthly-partitioning.sql`
 - `safety_event_log`를 월별 RANGE 파티셔닝으로 유지
 - 기존 비파티션 테이블이 있으면 마이그레이션 처리
 
-### 12. 자동 검증 스크립트
+### 13. 자동 검증 스크립트
 1. P0 검증
 ```bash
 .\scripts\verify-p0.ps1
@@ -139,7 +228,7 @@ cd backend
 .\scripts\verify-spec-v2.1.ps1
 ```
 
-### 13. Kafka 이슈 대응 메모
+### 14. Kafka 이슈 대응 메모
 증상:
 - `NodeExistsException` (broker id 충돌)
 - `InconsistentClusterIdException`
@@ -158,12 +247,12 @@ docker volume rm platform_kafka_data
 docker-compose up -d kafka
 ```
 
-### 14. 참고 문서
+### 15. 참고 문서
 - `PROJECT_SPECIFICATION_v2.1.md`
 - `docs/adr/001-event-sourcing-v2.md`
 - `docs/adr/003-kafka-streams-v2.md`
 
-### 15. 환경변수(.env) 설정
+### 16. 환경변수(.env) 설정
 1. 로컬 환경파일 생성
 ```powershell
 Copy-Item .env.example .env
@@ -179,7 +268,7 @@ Copy-Item frontend/.env.example frontend/.env
 docker-compose up -d --build
 ```
 
-### 16. Git 업로드 전 체크리스트
+### 17. Git 업로드 전 체크리스트
 1. 추적 제외 파일 확인
 ```bash
 git check-ignore -v .env frontend/.env
