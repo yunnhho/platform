@@ -31,10 +31,19 @@ yarn-error.log*
 
 # Frontend Build
 frontend/build/
+frontend/.npm-cache/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 frontend/.env.local
 frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
+
+# Environment variables
+.env
+.env.*
+!.env.example
 
 # OS
 .DS_Store

@@ -1,21 +1,19 @@
-version: '3.8'
-
 services:
   # ==================== Database ====================
   postgres:
     image: postgres:15-alpine
     container_name: safety-postgres
     environment:
-      POSTGRES_DB: safety_db
-      POSTGRES_USER: safety_user
-      POSTGRES_PASSWORD: safety_pass
+      POSTGRES_DB: ${POSTGRES_DB:-safety_db}
+      POSTGRES_USER: ${POSTGRES_USER:-safety_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-safety_pass}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT:-5432}:${POSTGRES_CONTAINER_PORT:-5432}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U safety_user -d safety_db"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +23,7 @@ services:
     image: redis:7.2-alpine
     container_name: safety-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:${REDIS_CONTAINER_PORT:-6379}"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -40,10 +38,13 @@ services:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: safety-zookeeper
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT:-2181}
+      ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME:-2000}
     ports:
-      - "2181:2181"
+      - "${ZOOKEEPER_HOST_PORT:-2181}:${ZOOKEEPER_CLIENT_PORT:-2181}"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -51,39 +52,53 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
-      - "29092:29092"
+      - "${KAFKA_HOST_PORT:-9092}:${KAFKA_EXTERNAL_PORT:-9092}"
+      - "${KAFKA_INTERNAL_HOST_PORT:-29092}:${KAFKA_INTERNAL_PORT:-29092}"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_BROKER_ID: ${KAFKA_BROKER_ID:-1}
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:${ZOOKEEPER_CLIENT_PORT:-2181}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:${KAFKA_INTERNAL_PORT:-29092},PLAINTEXT_HOST://${KAFKA_HOSTNAME:-localhost}:${KAFKA_HOST_PORT:-9092}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR:-1}
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "${KAFKA_AUTO_CREATE_TOPICS_ENABLE:-true}"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:${KAFKA_EXTERNAL_PORT:-9092} --list"]
       interval: 30s
       timeout: 10s
       retries: 5
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: safety-kafka-ui
+    ports:
+      - "${KAFKA_UI_HOST_PORT:-8085}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ${KAFKA_UI_CLUSTER_NAME:-safety-local}
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:${ZOOKEEPER_CLIENT_PORT:-2181}
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   # ==================== Object Storage ====================
   minio:
     image: minio/minio:latest
     container_name: safety-minio
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_HOST_PORT:-9000}:${MINIO_API_PORT:-9000}"
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":${MINIO_CONSOLE_PORT:-9001}"
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:${MINIO_API_PORT:-9000}/minio/health/live"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -93,7 +108,7 @@ services:
     image: prom/prometheus:latest
     container_name: safety-prometheus
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -105,11 +120,11 @@ services:
     image: grafana/grafana:latest
     container_name: safety-grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_HOST_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=${GRAFANA_ALLOW_SIGN_UP:-false}
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
@@ -124,20 +139,22 @@ services:
       dockerfile: Dockerfile
     container_name: safety-backend
     ports:
-      - "8089:8080"
-      - "8090:8081"  # Mock API
+      - "${BACKEND_HOST_PORT:-8080}:${BACKEND_PORT:-8080}"
+      - "${BACKEND_MOCK_HOST_PORT:-8081}:${BACKEND_MOCK_PORT:-8081}"  # Mock API
     environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/safety_db
-      SPRING_DATASOURCE_USERNAME: safety_user
-      SPRING_DATASOURCE_PASSWORD: safety_pass
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      KAFKA_STREAMS_STATE_DIR: /app/kafka-streams-state
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SERVER_PORT: ${BACKEND_PORT:-8080}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${SPRING_DATASOURCE_HOST:-postgres}:${SPRING_DATASOURCE_PORT:-5432}/${POSTGRES_DB:-safety_db}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-safety_user}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-safety_pass}
+      SPRING_REDIS_HOST: ${SPRING_REDIS_HOST:-redis}
+      SPRING_REDIS_PORT: ${SPRING_REDIS_PORT:-6379}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      KAFKA_STREAMS_STATE_DIR: ${KAFKA_STREAMS_STATE_DIR:-/app/kafka-streams-state}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-safety-bucket}
     volumes:
       - kafka_streams_state:/app/kafka-streams-state
     depends_on:
@@ -148,7 +165,7 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-8080}/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -158,18 +175,23 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8080}
+        REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://localhost:8080}
     container_name: safety-frontend
     ports:
-      - "3001:3000"
+      - "${FRONTEND_HOST_PORT:-3001}:${FRONTEND_CONTAINER_PORT:-3000}"
     environment:
-      - REACT_APP_API_URL=http://localhost:8080
-      - REACT_APP_WS_URL=ws://localhost:8080
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:8080}
+      - REACT_APP_WS_URL=${REACT_APP_WS_URL:-ws://localhost:8080}
     depends_on:
       - backend
 
 volumes:
   postgres_data:
   redis_data:
+  zookeeper_data:
+  zookeeper_log:
   kafka_data:
   minio_data:
   prometheus_data:
@@ -178,4 +200,4 @@ volumes:
 
 networks:
   default:
-    name: safety-network
+    name: ${DOCKER_NETWORK_NAME:-safety-network}

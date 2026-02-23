@@ -1,9 +1,9 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
-    name: safety-platform
+    name: ${SPRING_APPLICATION_NAME:safety-platform}
   
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/safety_db}
@@ -13,12 +13,12 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SPRING_JPA_SHOW_SQL:true}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: ${SPRING_JPA_FORMAT_SQL:true}
 
   data:
     redis:
@@ -30,20 +30,24 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
     consumer:
-      group-id: safety-group
-      auto-offset-reset: earliest
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:safety-group}
+      auto-offset-reset: ${KAFKA_CONSUMER_AUTO_OFFSET_RESET:earliest}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "*"
     streams:
-      application-id: safety-platform-streams
+      application-id: ${KAFKA_STREAMS_APPLICATION_ID:safety-platform-streams}
       state-dir: ${KAFKA_STREAMS_STATE_DIR:./kafka-streams-state}
       properties:
-        num.standby.replicas: 1
-        state.cleanup.delay.ms: 600000
-        acceptable.recovery.lag: 10000
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        spring.json.trusted.packages: "*"
+        num.standby.replicas: ${KAFKA_STREAMS_NUM_STANDBY_REPLICAS:1}
+        state.cleanup.delay.ms: ${KAFKA_STREAMS_STATE_CLEANUP_DELAY_MS:600000}
+        acceptable.recovery.lag: ${KAFKA_STREAMS_ACCEPTABLE_RECOVERY_LAG:10000}
 
 management:
   endpoints:
@@ -57,9 +61,26 @@ management:
     tags:
       application: ${spring.application.name}
 
+app:
+  scheduler:
+    sensor-polling:
+      enabled: ${APP_SENSOR_POLLING_ENABLED:true}
+  storage-tier:
+    enabled: ${APP_STORAGE_TIER_ENABLED:true}
+    hot-hours: ${APP_STORAGE_HOT_HOURS:24}
+    warm-days: ${APP_STORAGE_WARM_DAYS:7}
+    batch-size: ${APP_STORAGE_BATCH_SIZE:500}
+    archive-enabled: ${APP_STORAGE_ARCHIVE_ENABLED:true}
+    archive-cron: "${APP_STORAGE_ARCHIVE_CRON:0 */10 * * * *}"
+  streams:
+    sla:
+      enabled: ${APP_STREAMS_SLA_ENABLED:true}
+      threshold-ms: ${APP_STREAMS_SLA_THRESHOLD_MS:30000}
+      monitor-fixed-delay-ms: ${APP_STREAMS_SLA_MONITOR_FIXED_DELAY_MS:10000}
+
 # MinIO Configuration
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
-  bucket: safety-bucket
+  bucket: ${MINIO_BUCKET:safety-bucket}

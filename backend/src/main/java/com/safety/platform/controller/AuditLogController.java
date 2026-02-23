@@ -1,6 +1,7 @@
 package com.safety.platform.controller;
 
 import com.safety.platform.domain.EventAuditLog;
+import com.safety.platform.dto.AuditStatsResponse;
 import com.safety.platform.service.AuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -26,5 +27,10 @@ public class AuditLogController {
         return auditService.getModificationAttempts(
             PageRequest.of(page, size, Sort.by("attemptedAt").descending())
         );
+    }
+
+    @GetMapping("/stats")
+    public AuditStatsResponse getAuditStats() {
+        return auditService.getStatistics();
     }
 }

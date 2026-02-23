@@ -1,0 +1,122 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "title": "Audit/Immutability Violations",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "safety_immutability_violation_total",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 2,
+      "title": "Outbox Sent Total",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "safety_outbox_sent_total",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "title": "Outbox Failed Total",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "safety_outbox_failed_total",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 4,
+      "title": "Kafka Streams Recovery Time (ms)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "kafka_streams_state_recovery_time_ms",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 5,
+      "title": "Kafka Streams State Code",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "kafka_streams_state_code",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 37,
+  "style": "dark",
+  "tags": [
+    "safety"
+  ],
+  "title": "Safety Overview",
+  "uid": "safety-overview",
+  "version": 1
+}

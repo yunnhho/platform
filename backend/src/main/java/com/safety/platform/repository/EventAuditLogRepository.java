@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Repository
 public interface EventAuditLogRepository extends JpaRepository<EventAuditLog, Long> {
@@ -17,4 +18,8 @@ public interface EventAuditLogRepository extends JpaRepository<EventAuditLog, Lo
 
     // 날짜별 조회
     Page<EventAuditLog> findByAttemptedAtBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
+
+    long countByOperation(String operation);
+
+    Optional<EventAuditLog> findTopByOrderByAttemptedAtDesc();
 }
