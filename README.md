@@ -19,50 +19,7 @@
 
 ### 3. 아키텍처 및 데이터 플로우(시각화)
 #### 3.1 시스템 아키텍처
-```mermaid
-flowchart TB
-    subgraph L1["Client Layer"]
-        U["Operator Browser"]
-        F["Frontend (React)"]
-    end
-
-    subgraph L2["Service Layer"]
-        B["Backend API (Spring Boot)"]
-        W["WebSocket (/ws/sensors)"]
-        S["Schedulers<br/>Sensor Outbox Tier SLA"]
-    end
-
-    subgraph L3["Data and Stream Layer"]
-        P[("PostgreSQL")]
-        R[("Redis")]
-        K[("Kafka")]
-        KS["Kafka Streams"]
-        M[("MinIO")]
-    end
-
-    subgraph L4["Observability Layer"]
-        PM["Prometheus"]
-        G["Grafana"]
-        KU["Kafka UI"]
-    end
-
-    U --> F
-    F -->|HTTP| B
-    F -->|WS| W
-    W --> B
-
-    B --> P
-    B --> R
-    S --> P
-    S --> K
-    K --> KS
-    KS --> B
-    S --> M
-
-    B --> PM
-    PM --> G
-    K --> KU
-```
+![System Architecture](images/SystemArchitecture.png)
 
 #### 3.2 실시간 데이터 플로우
 ```mermaid
