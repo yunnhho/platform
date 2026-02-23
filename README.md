@@ -20,45 +20,48 @@
 ### 3. 아키텍처 및 데이터 플로우(시각화)
 #### 3.1 시스템 아키텍처
 ```mermaid
-flowchart LR
-    subgraph Clients[사용자/클라이언트]
-        UI[Frontend Dashboard<br/>React + STOMP]
-        Ops[운영자]
+flowchart TB
+    subgraph L1["Client Layer"]
+        U["Operator Browser"]
+        F["Frontend (React)"]
     end
 
-    subgraph Backend[Backend API<br/>Spring Boot]
-        API[REST API]
-        WS[WebSocket/STOMP]
-        SCH[Schedulers<br/>Sensor/Outbox/Tier/SLA]
+    subgraph L2["Service Layer"]
+        B["Backend API (Spring Boot)"]
+        W["WebSocket (/ws/sensors)"]
+        S["Schedulers<br/>Sensor Outbox Tier SLA"]
     end
 
-    subgraph DataPlane[데이터 계층]
-        PG[(PostgreSQL<br/>safety_event_log<br/>event_audit_log<br/>outbox_message)]
-        REDIS[(Redis Cache)]
-        KAFKA[(Kafka)]
-        STREAMS[Kafka Streams]
-        MINIO[(MinIO Archive)]
+    subgraph L3["Data and Stream Layer"]
+        P[("PostgreSQL")]
+        R[("Redis")]
+        K[("Kafka")]
+        KS["Kafka Streams"]
+        M[("MinIO")]
     end
 
-    subgraph Obs[관측/운영]
-        PROM[Prometheus]
-        GRAF[Grafana]
-        KUI[Kafka UI]
+    subgraph L4["Observability Layer"]
+        PM["Prometheus"]
+        G["Grafana"]
+        KU["Kafka UI"]
     end
 
-    Ops --> UI
-    UI -->|HTTP| API
-    UI -->|WS /ws/sensors| WS
-    API --> PG
-    API --> REDIS
-    SCH --> PG
-    SCH --> KAFKA
-    KAFKA --> STREAMS
-    STREAMS --> API
-    SCH --> MINIO
-    API --> PROM
-    PROM --> GRAF
-    KAFKA --> KUI
+    U --> F
+    F -->|HTTP| B
+    F -->|WS| W
+    W --> B
+
+    B --> P
+    B --> R
+    S --> P
+    S --> K
+    K --> KS
+    KS --> B
+    S --> M
+
+    B --> PM
+    PM --> G
+    K --> KU
 ```
 
 #### 3.2 실시간 데이터 플로우
@@ -94,16 +97,16 @@ sequenceDiagram
 #### 3.4 Hot-Warm-Cold 계층화 저장 흐름
 ```mermaid
 flowchart LR
-    H[HOT<br/>최근 이벤트<br/>PostgreSQL] --> W[WARM<br/>중기 데이터]
-    W --> C[COLD<br/>MinIO 아카이브 + manifest]
-    C --> R[복구/감사 조회]
+    E["Event Data"] --> H["HOT<br/>최근 24시간<br/>PostgreSQL"]
+    H -->|시간 경과| W["WARM<br/>중기 보관<br/>PostgreSQL"]
+    W -->|아카이브| C["COLD<br/>장기 보관<br/>MinIO and manifest"]
+    C --> R["복구 및 감사 조회"]
 
-    T1[StorageTierScheduler] --> H
-    T1 --> W
-    T2[Archive Run/API] --> C
-    API1[/api/storage/tiers/summary] --> H
-    API1 --> W
-    API1 --> C
+    SCH["StorageTierScheduler"] -->|자동 이동| W
+    RUN["POST api storage tiers archive run"] -->|수동 아카이브| C
+    SUM["GET api storage tiers summary"] --> H
+    SUM --> W
+    SUM --> C
 ```
 
 ### 4. 저장소 구조
